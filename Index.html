@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3×3 Edge-Matching Puzzle — Color Remapping Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #0f0e0d;
+    --surface: #181714;
+    --border:  #2e2b27;
+    --text:    #e8e2d9;
+    --muted:   #7a7268;
+    --accent:  #c8a96e;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-weight: 300;
+    line-height: 1.6;
+    padding: 48px 32px 100px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* HEADER */
+  header { border-bottom: 1px solid var(--border); padding-bottom: 28px; margin-bottom: 56px; }
+  header .label { font-size: 10px; letter-spacing: .25em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  header h1 { font-family: 'Fraunces', serif; font-size: clamp(26px,4vw,42px); font-weight: 300; line-height: 1.2; }
+  header h1 em { font-style: italic; color: var(--accent); }
+  header p { margin-top: 12px; font-size: 12px; color: var(--muted); max-width: 620px; }
+
+  /* SECTION */
+  section { margin-bottom: 72px; }
+  .section-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 28px; }
+  .step-num { font-family: 'Fraunces', serif; font-size: 56px; font-weight: 300; color: var(--border); line-height: 1; flex-shrink: 0; }
+  .section-title { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; color: var(--text); }
+  .section-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* LEGEND */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 28px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .legend-swatch { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+
+  /* PIECE ROW */
+  .piece-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .piece-card { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .piece-label { font-size: 11px; color: var(--accent); letter-spacing: .05em; }
+  .piece-sublabel { font-size: 9px; color: var(--muted); text-align: center; max-width: 90px; }
+  .sig-ok  { color: #6bbf59; }
+  .sig-col { color: #e05a3a; }
+
+  /* TYPE GROUPS */
+  .type-group-title {
+    font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 12px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .type-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; align-items: flex-start; }
+  .type-card {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 10px 8px; transition: border-color .2s;
+  }
+  .type-card:hover { border-color: var(--accent); }
+  .type-name { font-size: 11px; color: var(--accent); font-weight: 500; }
+  .type-canonical { font-size: 9px; color: var(--muted); }
+
+  /* TWO-COL REMAP */
+  .two-col-remap { display: grid; grid-template-columns: 1fr 1px 1fr; }
+  .remap-col { padding: 0 28px; }
+  .remap-col:first-child { padding-left: 0; }
+  .col-divider { background: var(--border); }
+  .remap-block-title { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .remap-formula {
+    font-size: 11px; color: var(--muted); background: var(--bg);
+    padding: 3px 9px; border-radius: 2px; border: 1px solid var(--border);
+    display: inline-block; margin-bottom: 12px;
+  }
+  .remap-arrows { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .remap-arrow { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .arrow-swatch { width: 18px; height: 18px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1); }
+
+  /* INVENTORY */
+  .inv-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 6px; }
+  .inv-pill {
+    font-size: 10px; padding: 2px 8px; border-radius: 2px;
+    border: 1px solid var(--border); color: var(--muted); background: var(--bg);
+  }
+  .collision-note {
+    background: rgba(200,169,110,.07); border: 1px solid rgba(200,169,110,.25);
+    border-radius: 4px; padding: 10px 14px; font-size: 11px; color: var(--accent);
+    margin: 10px 0 20px;
+  }
+
+  /* BOARD */
+  .board-grid { display: grid; gap: 3px; width: fit-content; }
+  .board-3x3  { grid-template-columns: repeat(3, auto); }
+
+  /* PERM GRIDS */
+  .perm-row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; margin-top: 12px; }
+  .perm-block { display: flex; flex-direction: column; gap: 6px; }
+  .perm-title { font-size: 10px; color: var(--muted); }
+  .perm-cell {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1px; background: var(--surface); border: 1px solid var(--border); border-radius: 2px;
+  }
+  .perm-type { font-size: 11px; color: var(--text); font-weight: 500; }
+  .perm-idx  { font-size: 9px; color: var(--accent); }
+
+  /* SIGNATURE TABLE */
+  .sig-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 14px; }
+  .sig-table th {
+    text-align: left; color: var(--muted); padding: 6px 12px;
+    border-bottom: 1px solid var(--border); font-weight: 400; letter-spacing: .06em;
+  }
+  .sig-table td { padding: 6px 12px; border-bottom: 1px solid rgba(46,43,39,.5); vertical-align: middle; }
+  .sig-table tr:hover td { background: rgba(255,255,255,.02); }
+  .type-badge {
+    display: inline-block; font-size: 10px; font-weight: 500;
+    color: var(--accent); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 2px;
+    padding: 1px 7px; margin-right: 2px;
+  }
+  .sig-pair { display: flex; align-items: center; gap: 4px; }
+  .sig-pair-sep { color: var(--muted); font-size: 11px; }
+
+  /* RESULT BOX */
+  .result-box {
+    background: rgba(107,191,89,.07); border: 1px solid rgba(107,191,89,.3);
+    border-radius: 4px; padding: 14px 18px; font-size: 11px; color: var(--text); margin-top: 20px;
+  }
+  .result-box strong { color: #6bbf59; }
+
+  hr.div { border: none; border-top: 1px solid var(--border); margin: 0 0 52px; }
+
+  @media(max-width:800px) {
+    .two-col-remap { grid-template-columns: 1fr; }
+    .col-divider { height: 1px; width: 100%; margin: 24px 0; }
+    .remap-col { padding: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="label">Mathematical Puzzle Analysis · Edge-Matching · Color Remapping</div>
+  <h1>3×3 Puzzle:<br><em>Two Remappings</em> to Discriminate All Pieces</h1>
+  <p>Each piece encodes a color on each of its four edges (N, E, S, W). Binary remappings collapse the color space; a family of two remappings suffices to uniquely identify every piece.</p>
+</header>
+
+<!-- SECTION 01 — PIECES + SOLVED BOARD -->
+<section id="s1">
+  <div class="section-head">
+    <div class="step-num">01</div>
+    <div>
+      <div class="section-title">The Nine Puzzle Pieces</div>
+      <div class="section-sub">Color set Γ = {0,1,2,3,4} · piece encoding (N, E, S, W) · 0 = boundary</div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:#1a1917;border-color:#555"></div>0 — boundary</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#e05a3a"></div>1 — burnt orange</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#4a90d9"></div>2 — steel blue</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#6bbf59"></div>3 — leaf green</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#c87dd4"></div>4 — violet</div>
+  </div>
+
+  <!-- pieces + board side by side -->
+  <div style="display:flex;gap:48px;flex-wrap:wrap;align-items:flex-start;">
+    <div>
+      <div class="type-group-title" style="margin-bottom:12px;">All pieces</div>
+      <div id="original-pieces" class="piece-row" style="max-width:560px;"></div>
+    </div>
+    <div>
+      <div class="type-group-title" style="margin-bottom:12px;">Solved board</div>
+      <div id="original-board" class="board-grid board-3x3"></div>
+    </div>
+  </div>
+</section>
+
+<hr class="div">
+
+<!-- SECTION 02 — CANONICAL TYPES -->
+<section id="s2">
+  <div class="section-head">
+    <div class="step-num">02</div>
+    <div>
+      <div class="section-title">18 Canonical Piece Types</div>
+      <div class="section-sub">Under any binary remapping · gold = 1 · teal = 2 · canonical = lexicographically minimal rotation of (N,E,S,W) over {0,1,2}</div>
+    </div>
+  </div>
+  <div class="type-group-title">Corners — 2 adjacent boundary edges</div>
+  <div id="type-corners" class="type-row"></div>
+  <div class="type-group-title">Edges — 1 boundary edge</div>
+  <div id="type-edges" class="type-row"></div>
+  <div class="type-group-title">Interior — no boundary edges</div>
+  <div id="type-interior" class="type-row"></div>
+</section>
+
+<hr class="div">
+
+<!-- SECTION 03 — REMAPPINGS -->
+<section id="s3">
+  <div class="section-head">
+    <div class="step-num">03</div>
+    <div>
+      <div class="section-title">Applying the Two Binary Remappings</div>
+      <div class="section-sub">f : Γ → {0,1,2} · f(0)=0 · each non-boundary color → gold (1) or teal (2)</div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:#1a1917;border-color:#555"></div>0 — boundary</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#f0c040"></div>1 — gold (group A)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#40b8c0"></div>2 — teal (group B)</div>
+  </div>
+  <div class="two-col-remap">
+    <div class="remap-col" id="remap-f1"></div>
+    <div class="col-divider"></div>
+    <div class="remap-col" id="remap-f2"></div>
+  </div>
+</section>
+
+<hr class="div">
+
+<!-- SECTION 04 — SIGNATURES TABLE -->
+<section id="s4">
+  <div class="section-head">
+    <div class="step-num">04</div>
+    <div>
+      <div class="section-title">Combined (f₁, f₂) Signatures — All Distinct</div>
+      <div class="section-sub">Each piece identified by its type-name pair · neither remapping alone fully discriminates</div>
+    </div>
+  </div>
+  <div id="sig-table-wrap"></div>
+</section>
+
+<hr class="div">
+
+<!-- SECTION 05 — FINAL SOLUTION SYNTHESIS -->
+<section id="s5">
+  <div class="section-head">
+    <div class="step-num">05</div>
+    <div>
+      <div class="section-title">Solution Synthesis</div>
+      <div class="section-sub">From remapped type solutions → combined signature board → original piece indices recovered</div>
+    </div>
+  </div>
+
+  <!-- row 1: f1 + f2 in same two-column layout as section 03 -->
+  <div class="two-col-remap" style="margin-bottom:44px;">
+    <div class="remap-col" style="display:flex;flex-direction:column;align-items:flex-end;">
+      <div style="width:100%;">
+        <div class="remap-block-title">f₁</div>
+        <div class="remap-formula">solution — piece types</div>
+        <div class="type-group-title" style="margin-bottom:10px;margin-top:14px;">Solved board under f₁</div>
+      </div>
+      <div id="sol-f1-board" class="board-grid board-3x3"></div>
+    </div>
+    <div class="col-divider"></div>
+    <div class="remap-col">
+      <div class="remap-block-title">f₂</div>
+      <div class="remap-formula">solution — piece types</div>
+      <div class="type-group-title" style="margin-bottom:10px;margin-top:14px;">Solved board under f₂</div>
+      <div id="sol-f2-board" class="board-grid board-3x3"></div>
+    </div>
+  </div>
+
+  <!-- row 2: combined signature board — centered -->
+  <div style="margin-bottom:44px;">
+    <div class="type-group-title" style="margin-bottom:10px;">Combined solution — signature (type<sub>f₁</sub>, type<sub>f₂</sub>) per cell</div>
+    <div style="display:flex;justify-content:center;">
+      <div id="sol-combined-board" class="board-grid board-3x3"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;">
+      Gray triangles carry no color meaning · accent = type under f₁ · muted = type under f₂ · pair uniquely identifies each piece
+    </div>
+  </div>
+
+  <!-- row 3: recovered original puzzle — centered -->
+  <div>
+    <div class="type-group-title" style="margin-bottom:10px;">Recovered original puzzle — piece indices from discriminating table</div>
+    <div style="display:flex;justify-content:center;">
+      <div id="sol-original-board" class="board-grid board-3x3"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;">
+      Each signature maps to exactly one original piece · original colors fully restored
+    </div>
+  </div>
+</section>
+
+<script>
+/* ── COLOR PALETTES ── */
+const CM_ORIG = { 0:'#1a1917', 1:'#e05a3a', 2:'#4a90d9', 3:'#6bbf59', 4:'#c87dd4' };
+const CM_REMAP = { 0:'#1a1917', 1:'#f0c040', 2:'#40b8c0' };
+
+/* ── PUZZLE PIECES (N, E, S, W) ── */
+const PIECES = [
+  { id:0, edges:[0,1,1,0], pos:'top-left corner' },
+  { id:1, edges:[0,2,3,1], pos:'top edge' },
+  { id:2, edges:[0,0,2,2], pos:'top-right corner' },
+  { id:3, edges:[1,3,4,0], pos:'left edge' },
+  { id:4, edges:[3,4,2,3], pos:'center' },
+  { id:5, edges:[2,0,3,4], pos:'right edge' },
+  { id:6, edges:[4,2,0,0], pos:'bottom-left corner' },
+  { id:7, edges:[2,1,0,2], pos:'bottom edge' },
+  { id:8, edges:[3,0,0,1], pos:'bottom-right corner' },
+];
+
+/* ── REMAPPING DEFINITIONS ── */
+const REMAPS = [
+  {
+    id:1, label:'f₁', formula:'1→2 · 2→1 · 3→1 · 4→1', desc:'mask 0001 — only color 1 maps to teal',
+    fn:{0:0,1:2,2:1,3:1,4:1},
+    arrows:[
+      {from:'#e05a3a',to:'#40b8c0',label:'1 → 2 (teal)'},
+      {from:'#4a90d9',to:'#f0c040',label:'2 → 1 (gold)'},
+      {from:'#6bbf59',to:'#f0c040',label:'3 → 1 (gold)'},
+      {from:'#c87dd4',to:'#f0c040',label:'4 → 1 (gold)'},
+    ],
+  },
+  {
+    id:2, label:'f₂', formula:'1→1 · 2→2 · 3→1 · 4→1', desc:'mask 0010 — only color 2 maps to teal',
+    fn:{0:0,1:1,2:2,3:1,4:1},
+    arrows:[
+      {from:'#e05a3a',to:'#f0c040',label:'1 → 1 (gold)'},
+      {from:'#4a90d9',to:'#40b8c0',label:'2 → 2 (teal)'},
+      {from:'#6bbf59',to:'#f0c040',label:'3 → 1 (gold)'},
+      {from:'#c87dd4',to:'#f0c040',label:'4 → 1 (gold)'},
+    ],
+  },
+];
+
+/* ── 18 CANONICAL TYPES ── */
+const CANON_TYPES = {
+  corners: [
+    {name:'C1',form:[0,0,1,1]},{name:'C2',form:[0,0,1,2]},
+    {name:'C3',form:[0,0,2,1]},{name:'C4',form:[0,0,2,2]},
+  ],
+  edges: [
+    {name:'E1',form:[0,1,1,1]},{name:'E2',form:[0,1,1,2]},
+    {name:'E3',form:[0,1,2,1]},{name:'E4',form:[0,1,2,2]},
+    {name:'E5',form:[0,2,1,1]},{name:'E6',form:[0,2,1,2]},
+    {name:'E7',form:[0,2,2,1]},{name:'E8',form:[0,2,2,2]},
+  ],
+  interior: [
+    {name:'I1',form:[1,1,1,1]},{name:'I2',form:[1,1,1,2]},
+    {name:'I3',form:[1,1,2,2]},{name:'I4',form:[1,2,1,2]},
+    {name:'I5',form:[1,2,2,2]},{name:'I6',form:[2,2,2,2]},
+  ],
+};
+const ALL_TYPES = [...CANON_TYPES.corners,...CANON_TYPES.edges,...CANON_TYPES.interior];
+
+/* ── CANONICAL / TYPE HELPERS ── */
+function rots(p) {
+  return [
+    [p[0],p[1],p[2],p[3]],
+    [p[3],p[0],p[1],p[2]],
+    [p[2],p[3],p[0],p[1]],
+    [p[1],p[2],p[3],p[0]],
+  ];
+}
+function canon(p) {
+  return rots(p).sort((a,b)=>{ for(let i=0;i<4;i++) if(a[i]!==b[i]) return a[i]-b[i]; return 0; })[0];
+}
+function typeName(edges, fn) {
+  const key = canon(edges.map(c=>fn[c])).join(',');
+  return (ALL_TYPES.find(t=>t.form.join(',')===key)||{name:'??'}).name;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PIECE SVG TEMPLATE
+   Square divided into 4 triangles by both diagonals.
+   N = top triangle, E = right, S = bottom, W = left.
+   label = text shown in center circle.
+   colorMap = { edgeValue: hexColor }
+══════════════════════════════════════════════════════════ */
+function pieceSVG(edges, colorMap, size, label) {
+  const s = size, h = s/2, pad = 1.5;
+  const cr = Math.round(s * 0.19);
+  const c = (k) => colorMap[k] || '#1a1917';
+  const pts = {
+    TL:`${pad},${pad}`, TR:`${s-pad},${pad}`,
+    BR:`${s-pad},${s-pad}`, BL:`${pad},${s-pad}`, C:`${h},${h}`,
+  };
+  const tri = (a,b,c2,col) =>
+    `<polygon points="${pts[a]} ${pts[b]} ${pts[c2]}" fill="${col}" stroke="#0f0e0d" stroke-width="0.8"/>`;
+  const txt = label
+    ? `<text x="${h}" y="${h+cr*0.38}" text-anchor="middle"
+        font-family="'DM Mono',monospace" font-size="${Math.round(cr*0.9)}"
+        font-weight="500" fill="#e8e2d9">${label}</text>`
+    : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+  <rect width="${s}" height="${s}" fill="#181714" rx="2"/>
+  ${tri('TL','TR','C',c(edges[0]))}
+  ${tri('TR','BR','C',c(edges[1]))}
+  ${tri('BR','BL','C',c(edges[2]))}
+  ${tri('BL','TL','C',c(edges[3]))}
+  <circle cx="${h}" cy="${h}" r="${cr}" fill="#181714" stroke="#2e2b27" stroke-width="1"/>
+  ${txt}
+</svg>`;
+}
+
+/* ── ORIGINAL PIECES ── */
+function buildOriginalPieces() {
+  document.getElementById('original-pieces').innerHTML = PIECES.map(p =>
+    `<div class="piece-card">
+      ${pieceSVG(p.edges, CM_ORIG, 90, `p${p.id}`)}
+      <div class="piece-sublabel">(${p.edges.join(',')}) · ${p.pos}</div>
+    </div>`
+  ).join('');
+}
+
+/* ── TYPE STRIP ── */
+function buildTypeStrip(types, id) {
+  document.getElementById(id).innerHTML = types.map(t =>
+    `<div class="type-card">
+      ${pieceSVG(t.form, CM_REMAP, 64, t.name)}
+      <div class="type-canonical">(${t.form.join(',')})</div>
+    </div>`
+  ).join('');
+}
+
+/* ── REMAP BLOCK ── */
+function buildRemapBlock(remap, targetId) {
+  const el = document.getElementById(targetId);
+
+  /* ---- arrows ---- */
+  const arrowsHTML = remap.arrows.map(a =>
+    `<div class="remap-arrow">
+      <div class="arrow-swatch" style="background:${a.from}"></div>
+      <span>→</span>
+      <div class="arrow-swatch" style="background:${a.to}"></div>
+      <span>${a.label}</span>
+    </div>`
+  ).join('');
+
+  /* ---- type counts & collision detection ---- */
+  const typeMap = {};
+  PIECES.forEach(p => {
+    const t = typeName(p.edges, remap.fn);
+    if (!typeMap[t]) typeMap[t] = [];
+    typeMap[t].push(p.id);
+  });
+  const distinct = Object.keys(typeMap).length;
+
+  /* ---- remapped piece row ---- */
+  const piecesHTML = PIECES.map(p => {
+    const t = typeName(p.edges, remap.fn);
+    const collision = typeMap[t].length > 1;
+    // remap each edge value then look up in CM_REMAP
+    const remEdges = p.edges.map(c => remap.fn[c]);
+    return `<div class="piece-card">
+      <div class="piece-label">p${p.id}</div>
+      ${pieceSVG(remEdges, CM_REMAP, 80, t)}
+      ${collision ? `<div class="piece-sublabel sig-col">⚠ collision</div>` : ''}
+    </div>`;
+  }).join('');
+
+  /* ---- inventory ---- */
+  const invHTML = Object.entries(typeMap).sort().map(([t,ids]) =>
+    `<span class="inv-pill">${t} × ${ids.length}</span>`
+  ).join('');
+
+  /* ---- solved board: remapped colors + type label ---- */
+  const boardHTML = PIECES.map(p => {
+    const t = typeName(p.edges, remap.fn);
+    const remEdges = p.edges.map(c => remap.fn[c]);
+    return `<div>${pieceSVG(remEdges, CM_REMAP, 90, t)}</div>`;
+  }).join('');
+
+  /* ---- piece index solution grids ---- */
+  // solution A: the canonical solved placement (original piece indices)
+  const permA_cells = PIECES.map(p => {
+    const t = typeName(p.edges, remap.fn);
+    return `<div class="perm-cell" style="width:44px;height:44px;">
+      <div class="perm-type">p${p.id}</div><div class="perm-idx">${t}</div>
+    </div>`;
+  }).join('');
+
+  // solution B: an alternate valid placement — swap piece indices within colliding type groups
+  const permBOrder = [...PIECES];
+  Object.values(typeMap).filter(ids => ids.length > 1).forEach(ids => {
+    const positions = ids.map(id => PIECES.findIndex(p => p.id === id));
+    const reversed = [...positions].reverse();
+    positions.forEach((pos, i) => { permBOrder[pos] = PIECES[reversed[i]]; });
+  });
+  const permB_cells = permBOrder.map(p => {
+    const t = typeName(p.edges, remap.fn);
+    return `<div class="perm-cell" style="width:44px;height:44px;">
+      <div class="perm-type">p${p.id}</div><div class="perm-idx">${t}</div>
+    </div>`;
+  }).join('');
+
+  /* ---- factorial product of inventory ---- */
+  function factorial(n) { let r = 1; for(let i = 2; i <= n; i++) r *= i; return r; }
+  const factorTerms = Object.entries(typeMap).sort().map(([t,ids]) => ({ t, n: ids.length }));
+  const factorProduct = factorTerms.reduce((acc, {n}) => acc * factorial(n), 1);
+  // show only types with count > 1 in the expression; types with count=1 contribute factor 1
+  const factorExprParts = factorTerms.map(({t,n}) =>
+    n > 1 ? `${t}!&thinsp;(${factorial(n)})` : `${t}!&thinsp;(1)`
+  );
+  const factorExprColliding = factorTerms.filter(({n})=>n>1)
+    .map(({t,n})=>`${t}!&thinsp;=${factorial(n)}`).join(' × ');
+  const factorExprFull = factorTerms.map(({t,n})=>`${t}!`).join(' × ');
+
+  /* ---- collision group summary ---- */
+  const collGroups = Object.entries(typeMap).filter(([,ids])=>ids.length>1)
+    .map(([t,ids])=>`${t}: {p${ids.join(', p')}}`).join(' · ');
+
+  el.innerHTML = `
+    <div class="remap-block-title">${remap.label}</div>
+    <div class="remap-formula">${remap.formula}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">${remap.desc}</div>
+    <div class="remap-arrows">${arrowsHTML}</div>
+
+    <div class="type-group-title" style="margin-bottom:10px;">Remapped pieces — type label in center</div>
+    <div class="piece-row" style="margin-bottom:18px;">${piecesHTML}</div>
+
+    <div class="type-group-title" style="margin-bottom:8px;">Type inventory</div>
+    <div class="inv-row">${invHTML}</div>
+    <div class="collision-note">
+      ${distinct} / 9 distinct · ⚠ collisions: ${collGroups} · not discriminating on its own
+    </div>
+
+    <div class="type-group-title" style="margin-bottom:8px;margin-top:18px;">Piece index solutions count</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+      ∏<sub>t</sub> (count<sub>t</sub>)! = ${factorExprFull}
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+      = ${factorTerms.map(({t,n})=>`${factorial(n)}`).join(' × ')} ${factorProduct > 1 ? `= <span style="color:var(--text)">${factorProduct.toLocaleString()}</span>` : ''}
+    </div>
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:20px;padding:10px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+      <span style="font-size:11px;color:var(--muted);">total valid piece-index assignments</span>
+      <span style="font-family:'Fraunces',serif;font-size:32px;font-weight:300;color:var(--accent);margin-left:auto;">${factorProduct.toLocaleString()}</span>
+    </div>
+
+    <div class="type-group-title" style="margin-bottom:8px;">Solved board — remapped colors · type ID labels</div>
+    <div class="board-grid board-3x3" style="margin-bottom:22px;">${boardHTML}</div>
+
+    <div class="type-group-title" style="margin-bottom:8px;">Piece index solutions — valid placements from remapped solution</div>
+    <div class="perm-row">
+      <div class="perm-block">
+        <div class="perm-title">solution A — canonical piece assignment</div>
+        <div class="board-grid board-3x3">${permA_cells}</div>
+      </div>
+      <div class="perm-block">
+        <div class="perm-title">solution B — alternate piece assignment</div>
+        <div class="board-grid board-3x3">${permB_cells}</div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── SIGNATURE TABLE ── */
+function buildSigTable() {
+  const [r1,r2] = REMAPS;
+  const rows = PIECES.map(p => {
+    const t1 = typeName(p.edges, r1.fn);
+    const t2 = typeName(p.edges, r2.fn);
+    return `<tr>
+      <td style="color:var(--accent)">p${p.id}</td>
+      <td><code style="font-size:10px;color:var(--muted)">(${p.edges.join(',')})</code></td>
+      <td><span class="type-badge">${t1}</span></td>
+      <td><span class="type-badge">${t2}</span></td>
+      <td><div class="sig-pair">
+        <span class="type-badge">${t1}</span>
+        <span class="sig-pair-sep">,</span>
+        <span class="type-badge">${t2}</span>
+      </div></td>
+      <td class="sig-ok">✓ unique</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('sig-table-wrap').innerHTML = `
+    <table class="sig-table">
+      <thead><tr>
+        <th>piece</th><th>original (N,E,S,W)</th>
+        <th>type under f₁</th><th>type under f₂</th>
+        <th>signature</th><th>status</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="result-box">
+      <strong>✓ Family {f₁, f₂} is discriminating.</strong>
+      All 9 pieces receive a distinct type-pair signature.
+      f₁ alone: 7 distinct types · f₂ alone: 8 distinct types · combined: 9/9 — exact solution recovered by intersection.
+    </div>`;
+}
+
+/* ── ORIGINAL BOARD (section 01) ── */
+function buildOriginalBoard() {
+  document.getElementById('original-board').innerHTML = PIECES.map(p =>
+    `<div>${pieceSVG(p.edges, CM_ORIG, 90, `p${p.id}`)}</div>`
+  ).join('');
+}
+
+/* ── SOLUTION BOARDS (section 05) ── */
+function buildSolutionSection() {
+  const [r1, r2] = REMAPS;
+
+  // Build signature → piece lookup from the discriminating table
+  const sigToPiece = {};
+  PIECES.forEach(p => {
+    const t1 = typeName(p.edges, r1.fn);
+    const t2 = typeName(p.edges, r2.fn);
+    sigToPiece[`${t1},${t2}`] = p;
+  });
+
+  // f1 board: remapped colors, type label
+  document.getElementById('sol-f1-board').innerHTML = PIECES.map(p => {
+    const t = typeName(p.edges, r1.fn);
+    const remEdges = p.edges.map(c => r1.fn[c]);
+    return `<div>${pieceSVG(remEdges, CM_REMAP, 90, t)}</div>`;
+  }).join('');
+
+  // f2 board: remapped colors, type label
+  document.getElementById('sol-f2-board').innerHTML = PIECES.map(p => {
+    const t = typeName(p.edges, r2.fn);
+    const remEdges = p.edges.map(c => r2.fn[c]);
+    return `<div>${pieceSVG(remEdges, CM_REMAP, 90, t)}</div>`;
+  }).join('');
+
+  // combined board: ALL gray (no color meaning) — label only = signature pair (t1, t2)
+  // Gray palette: 3 shades so triangles are still visible but carry no color semantics
+  const CM_GRAY = { 0:'#1a1917', 1:'#3a3832', 2:'#504e48' };
+  document.getElementById('sol-combined-board').innerHTML = PIECES.map(p => {
+    const t1 = typeName(p.edges, r1.fn);
+    const t2 = typeName(p.edges, r2.fn);
+    // all non-boundary edges map to alternating grays just to show the diagonal structure
+    const remEdges = p.edges.map(c => r1.fn[c]); // use f1 mapping only for structure
+    const s = 100, h = s / 2, pad = 1.5;
+    const cr = Math.round(s * 0.22);
+    const gCol = (v) => CM_GRAY[v] || CM_GRAY[1];
+    const pts = {
+      TL:`${pad},${pad}`, TR:`${s-pad},${pad}`,
+      BR:`${s-pad},${s-pad}`, BL:`${pad},${s-pad}`, C:`${h},${h}`,
+    };
+    const tri = (a,b,cc,col) =>
+      `<polygon points="${pts[a]} ${pts[b]} ${pts[cc]}" fill="${col}" stroke="#0f0e0d" stroke-width="0.8"/>`;
+    const y1 = h - 5 + 2;
+    const y2 = h + 5 + 2;
+    return `<div><svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+  <rect width="${s}" height="${s}" fill="#181714" rx="2" stroke="#2e2b27" stroke-width="1"/>
+  ${tri('TL','TR','C', gCol(remEdges[0]))}
+  ${tri('TR','BR','C', gCol(remEdges[1]))}
+  ${tri('BR','BL','C', gCol(remEdges[2]))}
+  ${tri('BL','TL','C', gCol(remEdges[3]))}
+  <circle cx="${h}" cy="${h}" r="${cr}" fill="#181714" stroke="#2e2b27" stroke-width="1"/>
+  <text x="${h}" y="${y1}" text-anchor="middle"
+    font-family="'DM Mono',monospace" font-size="9" font-weight="500" fill="#c8a96e">${t1}</text>
+  <text x="${h}" y="${y2}" text-anchor="middle"
+    font-family="'DM Mono',monospace" font-size="9" font-weight="400" fill="#7a7268">${t2}</text>
+</svg></div>`;
+  }).join('');
+
+  // recovered original board: original colors, piece index label
+  document.getElementById('sol-original-board').innerHTML = PIECES.map(p =>
+    `<div>${pieceSVG(p.edges, CM_ORIG, 90, `p${p.id}`)}</div>`
+  ).join('');
+}
+
+/* ── INIT ── */
+buildOriginalPieces();
+buildOriginalBoard();
+buildTypeStrip(CANON_TYPES.corners,  'type-corners');
+buildTypeStrip(CANON_TYPES.edges,    'type-edges');
+buildTypeStrip(CANON_TYPES.interior, 'type-interior');
+buildRemapBlock(REMAPS[0], 'remap-f1');
+buildRemapBlock(REMAPS[1], 'remap-f2');
+buildSigTable();
+buildSolutionSection();
+</script>
+
+<!-- SECTION 06 — METHODS & THEORY -->
+<hr class="div" style="margin-top:0;">
+<section id="s6">
+  <div class="section-head">
+    <div class="step-num">06</div>
+    <div>
+      <div class="section-title">Methods, Usages &amp; Algorithms</div>
+      <div class="section-sub">Remapping selection · solution strategies · algorithmic approaches · trade-offs</div>
+    </div>
+  </div>
+
+  <!-- ── REMAPPING SELECTION ── -->
+  <div class="type-group-title" style="margin-bottom:20px;">Remapping selection</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:44px;">
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px 18px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">① GREEDY + ENTROPY</div>
+      <div style="font-size:11px;color:var(--text);margin-bottom:6px;font-weight:500;">Entropy-guided remapping selection</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:10px;">
+        Not all remappings are equally useful. A degenerate remapping that maps all colors to the same group — e.g. {1,2,3,4} → {1,1,1,1} — collapses every piece to the same type and discriminates nothing. To avoid this, each candidate remapping is scored by the <span style="color:var(--text)">entropy of its type inventory</span>: H = −∑ (c<sub>t</sub>/N) log₂(c<sub>t</sub>/N). A high score means pieces are spread across many distinct types; a low score means most pieces land in the same type. At each step, the highest-scoring remapping that increases the number of discriminated pairs is selected.
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.75;padding:10px 12px;border-left:2px solid rgba(200,169,110,.4);margin-bottom:10px;">
+        Maximum entropy is log₂ 18 ≈ 4.17 bits. High entropy is a good signal but not a guarantee — a remapping can spread pieces evenly and still fail to separate a specific colliding pair, so a discrimination check must follow.
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">O(N) per candidate</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">avoids degenerate splits</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">near-minimal families in practice</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">locally optimal only</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">entropy ≠ discrimination guarantee</span>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px 18px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">② EXHAUSTIVE</div>
+      <div style="font-size:11px;color:var(--text);margin-bottom:6px;font-weight:500;">Test all 2<sup>c</sup> binary remappings</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.7;">Enumerate every possible color partition and test pairs or triples for the discriminating property. Optimal but exponential in the number of non-boundary colors c.</div>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">globally optimal</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">2<sup>c</sup> cost</span>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px 18px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">③ ALGEBRAIC</div>
+      <div style="font-size:11px;color:var(--text);margin-bottom:6px;font-weight:500;">Separating codes on the color graph</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.7;">Treat remappings as binary labellings of the color graph; a discriminating family corresponds to a separating code — minimum size bounded by ⌈log<sub>18</sub>(N)⌉.</div>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">tight lower bound</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">construction non-trivial</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── USAGES ── -->
+  <div class="type-group-title" style="margin-bottom:20px;">Possible usages</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:44px;">
+
+    <!-- full enumeration -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:18px 20px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">FULL SOLUTION ENUMERATION</div>
+      <div style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:10px;">Type-level intersection → exact Sol(P)</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:12px;">
+        Solve each remapped puzzle at the <span style="color:var(--text)">type level</span> — store only which canonical type occupies each cell, never the piece indices. Intersect type-solution sets across all remappings; only boards consistent across every remapping survive. Piece-index assignments (∏ n<sub>t</sub>!) are computed on demand from the surviving type solutions.
+      </div>
+      <!-- flow diagram -->
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-bottom:14px;padding:10px 12px;background:var(--bg);border-radius:3px;border:1px solid var(--border);">
+        <span style="color:var(--text)">Solve P<sup>f₁</sup></span>
+        <span>→</span>
+        <span style="color:var(--text)">type solutions S₁</span>
+        <span>∩</span>
+        <span style="color:var(--text)">Solve P<sup>f₂</sup></span>
+        <span>→</span>
+        <span style="color:var(--text)">type solutions S₂</span>
+        <span>→</span>
+        <span style="color:var(--accent)">S₁ ∩ S₂ = Sol(P)</span>
+        <span>→</span>
+        <span style="color:var(--muted)">expand indices</span>
+      </div>
+      <!-- scalability note -->
+      <div style="font-size:11px;color:var(--muted);line-height:1.7;padding:10px 12px;border-left:2px solid rgba(224,90,58,.4);margin-bottom:12px;">
+        <span style="color:#e05a3a;">Scalability caveat.</span> For large puzzles (e.g. 16×16) the number of type-level solutions can itself be enormous if the remapped puzzle is under-constrained — even storing and intersecting type solutions may be infeasible without additional pruning.
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">exact result</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">compact type storage</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">deferred index expansion</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">type count unbounded at scale</span>
+      </div>
+    </div>
+
+    <!-- statistical -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:18px 20px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">STATISTICAL GATHERING</div>
+      <div style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:10px;">Bayesian aggregation → piece probability</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:12px;">
+        Each remapping produces a per-cell type distribution. Treating remappings as independent observations, combine them as P(piece<sub>i</sub> at cell) ∝ ∏<sub>k</sub> P<sub>fk</sub>(type<sub>fk</sub>(piece<sub>i</sub>) | cell). The result is a confidence ranking over piece placements without ever enumerating full solutions.
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.7;padding:10px 12px;border-left:2px solid rgba(200,169,110,.4);margin-bottom:12px;">
+        <span style="color:var(--accent);">Best used when</span> the puzzle is too large for exact enumeration but a ranked candidate list is sufficient — e.g. as a heuristic seed for a local search solver.
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">scales to large puzzles</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">no full solve required</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">approximate only</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">no guarantee of correctness</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── ALGORITHMS ── -->
+  <div class="type-group-title" style="margin-bottom:20px;">Algorithmic approaches</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+
+    <!-- row generation + DP -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:18px 20px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">ROW GENERATION + DP</div>
+      <div style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:10px;">Pattern-A / B row enumeration with multiset DP</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:12px;">
+        Classify grid rows into boundary rows (pattern A: two 0-edges per corner piece, one per edge piece) and inner rows (pattern B: no boundary edges). Enumerate all valid type-inventory vectors per row independently, then use dynamic programming over sorted multisets to find all combinations of row vectors whose type counts sum to the puzzle inventory — reducing exponential search to polynomial DP.
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">polynomial DP</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">inventory constraint prunes heavily</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">only type-level — no adjacency yet</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">row count grows with W</span>
+      </div>
+    </div>
+
+    <!-- threading -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:18px 20px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">THREADING</div>
+      <div style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:10px;">Row solving → boundary keys → vertical threading</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:10px;">
+        Each row of the puzzle is solved independently at the type level: all valid sequences of canonical types that fit the row's boundary constraints and consume a valid subset of the inventory are enumerated. For every such row solution, two <span style="color:var(--text)">boundary keys</span> are extracted — the sequence of south-edge type values along the bottom of the row, and the sequence of north-edge type values along the top. These keys describe exactly what a neighbouring row must present to be compatible.
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:10px;">
+        Threading then assembles full-grid solutions row by row: starting from the top boundary row, each subsequent row is selected only if its top key matches the bottom key of the row above. This propagates constraints strictly downward, eliminating incompatible rows immediately rather than after full grid assembly.
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.7;padding:10px 12px;border-left:2px solid rgba(200,169,110,.4);margin-bottom:12px;">
+        The reduced alphabet {0,1,2} from remapping keeps the number of distinct boundary keys small — far fewer than with the original color set — making key matching fast and pruning aggressive.
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">rows solved independently</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">key matching prunes early</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">small key space under remapping</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">memory ∝ valid row solutions</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">row count grows with W and H</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── ROTATION NOTE ── -->
+  <div style="margin-top:36px;border:1px solid rgba(224,90,58,.35);border-radius:4px;padding:18px 22px;background:rgba(224,90,58,.04);">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+      <div style="font-size:13px;font-weight:500;color:#e05a3a;">⚠ Rotations not considered in this document</div>
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;">Important caveat for real puzzles</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:14px;">
+      All examples, type classifications, and solution boards throughout this document treat pieces as <span style="color:var(--text)">fixed-orientation</span>. In a real edge-matching puzzle, pieces are free to rotate (0°, 90°, 180°, 270°), and this creates a subtle but critical problem at the intersection step.
+    </div>
+    <div style="padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:3px;font-size:11px;color:var(--muted);line-height:1.8;">
+      <div style="color:#e05a3a;font-weight:500;margin-bottom:8px;">Phantom solutions at the intersection</div>
+      Consider a piece that maps to type <span style="color:var(--text)">I1</span> under f₁ — but only when placed in <span style="color:var(--text)">rotation 2</span>. The same piece maps to type <span style="color:var(--text)">I5</span> under f₂ — but only when placed in <span style="color:var(--text)">rotation 3</span>. The intersection sees the pair (I1, I5) as a consistent combined signature and accepts it as a valid solution. But rotation 2 and rotation 3 are incompatible — no single physical placement of that piece can satisfy both remappings at once. The result is a <span style="color:#e05a3a;">phantom solution</span>: it passes every type-level filter yet corresponds to no valid placement in the original puzzle.
+    </div>
+    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7;">
+      Eliminating phantoms requires recording, for each type assignment, which specific rotation produced it — and verifying during intersection that the same rotation is consistent across all remappings for every piece. This is omitted throughout this document for clarity of presentation.
+    </div>
+  </div>
+
+</section>
+</script>
+</body>
+</html>
