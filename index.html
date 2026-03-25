@@ -22,7 +22,7 @@
     font-weight: 300;
     line-height: 1.6;
     padding: 48px 32px 100px;
-    max-width: 1200px;
+    max-width: 1450px;
     margin: 0 auto;
   }
 
@@ -472,44 +472,63 @@ function buildRemapBlock(remap, targetId) {
     return `<div>${pieceSVG(remEdges, CM_REMAP, 90, t)}</div>`;
   }).join('');
 
-  /* ---- piece index solution grids ---- */
-  // solution A: the canonical solved placement (original piece indices)
-  const permA_cells = PIECES.map(p => {
-    const t = typeName(p.edges, remap.fn);
-    return `<div class="perm-cell" style="width:44px;height:44px;">
-      <div class="perm-type">p${p.id}</div><div class="perm-idx">${t}</div>
-    </div>`;
-  }).join('');
-
-  // solution B: an alternate valid placement — swap piece indices within colliding type groups
-  const permBOrder = [...PIECES];
-  Object.values(typeMap).filter(ids => ids.length > 1).forEach(ids => {
-    const positions = ids.map(id => PIECES.findIndex(p => p.id === id));
-    const reversed = [...positions].reverse();
-    positions.forEach((pos, i) => { permBOrder[pos] = PIECES[reversed[i]]; });
-  });
-  const permB_cells = permBOrder.map(p => {
-    const t = typeName(p.edges, remap.fn);
-    return `<div class="perm-cell" style="width:44px;height:44px;">
-      <div class="perm-type">p${p.id}</div><div class="perm-idx">${t}</div>
-    </div>`;
-  }).join('');
-
   /* ---- factorial product of inventory ---- */
   function factorial(n) { let r = 1; for(let i = 2; i <= n; i++) r *= i; return r; }
   const factorTerms = Object.entries(typeMap).sort().map(([t,ids]) => ({ t, n: ids.length }));
   const factorProduct = factorTerms.reduce((acc, {n}) => acc * factorial(n), 1);
-  // show only types with count > 1 in the expression; types with count=1 contribute factor 1
-  const factorExprParts = factorTerms.map(({t,n}) =>
-    n > 1 ? `${t}!&thinsp;(${factorial(n)})` : `${t}!&thinsp;(1)`
-  );
-  const factorExprColliding = factorTerms.filter(({n})=>n>1)
-    .map(({t,n})=>`${t}!&thinsp;=${factorial(n)}`).join(' × ');
   const factorExprFull = factorTerms.map(({t,n})=>`${t}!`).join(' × ');
 
   /* ---- collision group summary ---- */
   const collGroups = Object.entries(typeMap).filter(([,ids])=>ids.length>1)
     .map(([t,ids])=>`${t}: {p${ids.join(', p')}}`).join(' · ');
+
+  /* ---- enumerate ALL piece-index solutions ---- */
+  // For each colliding group, generate all permutations of piece ids.
+  // Combine across groups via cartesian product → each combination is one full board assignment.
+  function permsOf(arr) {
+    if (arr.length <= 1) return [arr];
+    const result = [];
+    arr.forEach((v, i) => {
+      const rest = arr.filter((_,j)=>j!==i);
+      permsOf(rest).forEach(p => result.push([v,...p]));
+    });
+    return result;
+  }
+  // Build list of colliding groups: [{type, positions, pieceIds}]
+  const collidingGroups = Object.entries(typeMap)
+    .filter(([,ids])=>ids.length>1)
+    .map(([t,ids])=>({
+      t,
+      positions: ids.map(id => PIECES.findIndex(p=>p.id===id)),
+      pieceIds: ids,
+    }));
+  // Cartesian product of all group permutations
+  function cartesian(arrays) {
+    return arrays.reduce((acc,arr) => acc.flatMap(a => arr.map(b => [...a,b])), [[]]);
+  }
+  const groupPerms = collidingGroups.map(g => permsOf(g.pieceIds));
+  const allCombinations = cartesian(groupPerms); // each = [perm_for_group0, perm_for_group1, ...]
+
+  const allSolGrids = allCombinations.map((combo, solIdx) => {
+    // Build board order: start with original PIECES order, then overwrite colliding positions
+    const boardOrder = [...PIECES];
+    collidingGroups.forEach((g, gi) => {
+      const perm = combo[gi];
+      g.positions.forEach((pos, pi) => {
+        boardOrder[pos] = PIECES.find(p=>p.id===perm[pi]);
+      });
+    });
+    const cells = boardOrder.map(p => {
+      const t = typeName(p.edges, remap.fn);
+      return `<div class="perm-cell" style="width:44px;height:44px;">
+        <div class="perm-type">p${p.id}</div><div class="perm-idx">${t}</div>
+      </div>`;
+    }).join('');
+    return `<div class="perm-block">
+      <div class="perm-title">solution ${solIdx+1}</div>
+      <div class="board-grid board-3x3">${cells}</div>
+    </div>`;
+  }).join('');
 
   el.innerHTML = `
     <div class="remap-block-title">${remap.label}</div>
@@ -527,31 +546,17 @@ function buildRemapBlock(remap, targetId) {
     </div>
 
     <div class="type-group-title" style="margin-bottom:8px;margin-top:18px;">Piece index solutions count</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">
       ∏<sub>t</sub> (count<sub>t</sub>)! = ${factorExprFull}
-    </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
-      = ${factorTerms.map(({t,n})=>`${factorial(n)}`).join(' × ')} ${factorProduct > 1 ? `= <span style="color:var(--text)">${factorProduct.toLocaleString()}</span>` : ''}
-    </div>
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:20px;padding:10px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
-      <span style="font-size:11px;color:var(--muted);">total valid piece-index assignments</span>
-      <span style="font-family:'Fraunces',serif;font-size:32px;font-weight:300;color:var(--accent);margin-left:auto;">${factorProduct.toLocaleString()}</span>
+      = ${factorTerms.map(({n})=>factorial(n)).join(' × ')}
+      = <span style="color:var(--text);font-weight:500;">${factorProduct.toLocaleString()}</span>
     </div>
 
     <div class="type-group-title" style="margin-bottom:8px;">Solved board — remapped colors · type ID labels</div>
     <div class="board-grid board-3x3" style="margin-bottom:22px;">${boardHTML}</div>
 
-    <div class="type-group-title" style="margin-bottom:8px;">Piece index solutions — valid placements from remapped solution</div>
-    <div class="perm-row">
-      <div class="perm-block">
-        <div class="perm-title">solution A — canonical piece assignment</div>
-        <div class="board-grid board-3x3">${permA_cells}</div>
-      </div>
-      <div class="perm-block">
-        <div class="perm-title">solution B — alternate piece assignment</div>
-        <div class="board-grid board-3x3">${permB_cells}</div>
-      </div>
-    </div>
+    <div class="type-group-title" style="margin-bottom:8px;">Piece index solutions — all ${factorProduct} valid assignments</div>
+    <div class="perm-row">${allSolGrids}</div>
   `;
 }
 
@@ -688,7 +693,7 @@ buildSolutionSection();
 
   <!-- ── REMAPPING SELECTION ── -->
   <div class="type-group-title" style="margin-bottom:20px;">Remapping selection</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:44px;">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:44px;">
 
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px 18px;">
       <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">① GREEDY + ENTROPY</div>
@@ -725,6 +730,39 @@ buildSolutionSection();
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
         <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">tight lower bound</span>
         <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">construction non-trivial</span>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px 18px;">
+      <div style="font-size:10px;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">④ GENERALISED k-COLOR</div>
+      <div style="font-size:11px;color:var(--text);margin-bottom:6px;font-weight:500;">More colors per remapping — T(k) = k(k+1)²(k+2)/4 types</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:10px;">
+        The binary framework (k=2, 18 types) is a special case. Increasing k maps non-boundary colors to a larger alphabet {1…k}, expanding the canonical type space and requiring fewer remappings to discriminate all pieces — the minimum family size drops to ⌈log<sub>T(k)</sub>(N)⌉.
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px;">
+        <thead><tr>
+          <th style="text-align:left;color:var(--muted);padding:3px 6px;border-bottom:1px solid var(--border);font-weight:400;">k</th>
+          <th style="text-align:right;color:var(--muted);padding:3px 6px;border-bottom:1px solid var(--border);font-weight:400;">corners k²</th>
+          <th style="text-align:right;color:var(--muted);padding:3px 6px;border-bottom:1px solid var(--border);font-weight:400;">edges k³</th>
+          <th style="text-align:right;color:var(--muted);padding:3px 6px;border-bottom:1px solid var(--border);font-weight:400;">interior</th>
+          <th style="text-align:right;color:var(--muted);padding:3px 6px;border-bottom:1px solid var(--border);font-weight:400;">T(k)</th>
+          <th style="text-align:right;color:var(--muted);padding:3px 6px;border-bottom:1px solid var(--border);font-weight:400;">min |F| N=256</th>
+        </tr></thead>
+        <tbody>
+          <tr><td style="padding:2px 6px;color:var(--text);">2</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">4</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">8</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">6</td><td style="text-align:right;padding:2px 6px;color:var(--accent);">18</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">3</td></tr>
+          <tr><td style="padding:2px 6px;color:var(--text);">3</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">9</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">27</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">24</td><td style="text-align:right;padding:2px 6px;color:var(--accent);">60</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">2</td></tr>
+          <tr><td style="padding:2px 6px;color:var(--text);">4</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">16</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">64</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">70</td><td style="text-align:right;padding:2px 6px;color:var(--accent);">150</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">2</td></tr>
+          <tr><td style="padding:2px 6px;color:var(--text);">5</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">25</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">125</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">165</td><td style="text-align:right;padding:2px 6px;color:var(--accent);">315</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">2</td></tr>
+          <tr><td style="padding:2px 6px;color:var(--text);">6</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">36</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">216</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">336</td><td style="text-align:right;padding:2px 6px;color:var(--accent);">588</td><td style="text-align:right;padding:2px 6px;color:var(--muted);">1</td></tr>
+        </tbody>
+      </table>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">fewer remappings needed</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">finer piece discrimination per remapping</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">lower within-type ambiguity (∏ nₜ!)</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">larger inventory vector (T(k) dimensions)</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">DP state space grows with k⁴</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">k<sup>c</sup> candidate remappings to evaluate</span>
       </div>
     </div>
 
