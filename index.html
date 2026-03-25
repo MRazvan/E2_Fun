@@ -854,10 +854,13 @@ buildSolutionSection();
       <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:10px;">
         Threading then assembles full-grid solutions row by row: starting from the top boundary row, each subsequent row is selected only if its top key matches the bottom key of the row above. This propagates constraints strictly downward, eliminating incompatible rows immediately rather than after full grid assembly.
       </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.7;padding:10px 12px;border-left:2px solid rgba(107,191,89,.4);margin-bottom:12px;">
+        <span style="color:#6bbf59;">Parallelism.</span> Each row solution is independent — threading can be distributed across solvers, one per candidate top-row or row-pair. The total work scales linearly in the number of distributed solvers, making this approach well suited to parallel execution.
+      </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">rows solved independently</span>
         <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">key matching prunes early</span>
-        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">small key space under remapping</span>
+        <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">scales linearly with distributed solvers</span>
         <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">memory ∝ valid row solutions</span>
         <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(224,90,58,.1);border:1px solid rgba(224,90,58,.25);color:#e05a3a;">row count grows with W and H</span>
       </div>
@@ -874,12 +877,56 @@ buildSolutionSection();
     <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:14px;">
       All examples, type classifications, and solution boards throughout this document treat pieces as <span style="color:var(--text)">fixed-orientation</span>. In a real edge-matching puzzle, pieces are free to rotate (0°, 90°, 180°, 270°), and this creates a subtle but critical problem at the intersection step.
     </div>
-    <div style="padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:3px;font-size:11px;color:var(--muted);line-height:1.8;">
-      <div style="color:#e05a3a;font-weight:500;margin-bottom:8px;">Phantom solutions at the intersection</div>
-      Consider a piece that maps to type <span style="color:var(--text)">I1</span> under f₁ — but only when placed in <span style="color:var(--text)">rotation 2</span>. The same piece maps to type <span style="color:var(--text)">I5</span> under f₂ — but only when placed in <span style="color:var(--text)">rotation 3</span>. The intersection sees the pair (I1, I5) as a consistent combined signature and accepts it as a valid solution. But rotation 2 and rotation 3 are incompatible — no single physical placement of that piece can satisfy both remappings at once. The result is a <span style="color:#e05a3a;">phantom solution</span>: it passes every type-level filter yet corresponds to no valid placement in the original puzzle.
+    <div style="padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:3px;font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:12px;">
+      <div style="color:#e05a3a;font-weight:500;margin-bottom:10px;">Phantom solutions at the intersection</div>
+
+      <div style="margin-bottom:10px;">
+        Placing a piece into a canonical type slot requires a specific <span style="color:var(--text)">type-entry rotation</span> of the original piece. Additionally, each board cell demands a specific <span style="color:var(--text)">board-placement rotation</span> of that canonical type to satisfy its adjacency constraints. The physical rotation of the original piece on the board is the composition of both. For a cross-remapping solution to be valid, this composed rotation must be <span style="color:var(--text)">identical across all remappings</span>.
+      </div>
+
+      <!-- example table -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:12px 14px;margin-bottom:10px;">
+        <div style="font-size:10px;color:var(--accent);letter-spacing:.1em;margin-bottom:10px;">CONCRETE EXAMPLE — piece P₁</div>
+        <table style="width:100%;border-collapse:collapse;font-size:10px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);font-weight:400;">remapping</th>
+              <th style="text-align:center;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);font-weight:400;">canonical type</th>
+              <th style="text-align:center;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);font-weight:400;">type-entry rotation</th>
+              <th style="text-align:center;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);font-weight:400;">board placement rotation</th>
+              <th style="text-align:center;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);font-weight:400;">original piece rotation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:4px 8px;color:var(--text);">f₁</td>
+              <td style="text-align:center;padding:4px 8px;"><span style="color:var(--accent);">I2</span></td>
+              <td style="text-align:center;padding:4px 8px;color:var(--muted);">3</td>
+              <td style="text-align:center;padding:4px 8px;color:var(--muted);">2</td>
+              <td style="text-align:center;padding:4px 8px;color:#e05a3a;font-weight:500;">1</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 8px;color:var(--text);">f₂</td>
+              <td style="text-align:center;padding:4px 8px;"><span style="color:var(--accent);">I5</span></td>
+              <td style="text-align:center;padding:4px 8px;color:var(--muted);">2</td>
+              <td style="text-align:center;padding:4px 8px;color:var(--muted);">2</td>
+              <td style="text-align:center;padding:4px 8px;color:#e05a3a;font-weight:500;">0</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;font-size:10px;color:var(--muted);line-height:1.7;">
+          The intersection accepts the pair <span style="color:var(--text)">(I2, I5)</span> as valid — both types are present. But f₁ requires the original piece in rotation <span style="color:#e05a3a;">1</span> and f₂ requires rotation <span style="color:#e05a3a;">0</span>. These are different physical orientations of the same piece. No single placement satisfies both.
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted);line-height:1.7;">
+          For <span style="color:var(--text)">(I2, I5)</span> to be genuinely valid, I5 would need board placement rotation <span style="color:#6bbf59;">3</span> instead — composing to original rotation <span style="color:#6bbf59;">1</span>, matching f₁. Only then does a single physical placement satisfy both remappings simultaneously.
+        </div>
+      </div>
+
+      The type-level intersection has no visibility into these rotation compositions — it only checks that the type pair is consistent. A pair that looks valid in the intersection may require two different physical orientations of the same piece: a <span style="color:#e05a3a;">phantom solution</span>.
     </div>
-    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7;">
-      Eliminating phantoms requires recording, for each type assignment, which specific rotation produced it — and verifying during intersection that the same rotation is consistent across all remappings for every piece. This is omitted throughout this document for clarity of presentation.
+
+    <div style="font-size:11px;color:var(--muted);line-height:1.7;">
+      Eliminating phantoms requires augmenting the intersection with rotation tracking: for each piece-cell assignment, record the composed original-piece rotation, and enforce that it is identical across all remappings. This is omitted throughout this document for clarity of presentation.
     </div>
   </div>
 
