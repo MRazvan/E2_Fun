@@ -854,9 +854,6 @@ buildSolutionSection();
       <div style="font-size:11px;color:var(--muted);line-height:1.75;margin-bottom:10px;">
         Threading then assembles full-grid solutions row by row: starting from the top boundary row, each subsequent row is selected only if its top key matches the bottom key of the row above. This propagates constraints strictly downward, eliminating incompatible rows immediately rather than after full grid assembly.
       </div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.7;padding:10px 12px;border-left:2px solid rgba(200,169,110,.4);margin-bottom:12px;">
-        The reduced alphabet {0,1,2} from remapping keeps the number of distinct boundary keys small — far fewer than with the original color set — making key matching fast and pruning aggressive.
-      </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">rows solved independently</span>
         <span style="font-size:10px;padding:1px 7px;border-radius:2px;background:rgba(107,191,89,.1);border:1px solid rgba(107,191,89,.25);color:#6bbf59;">key matching prunes early</span>
