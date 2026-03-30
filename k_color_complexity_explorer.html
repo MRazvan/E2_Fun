@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-K1N4Z0EHSG"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-K1N4Z0EHSG');
+</script>  
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>k-Color Remapping Complexity Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f14;--surface:#13161e;--card:#181b24;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --text:#e8eaf0;--muted:#7a7f90;--dim:#454a58;
+  --purple:#7c6ff7;--teal:#22c98a;--coral:#f0643a;
+  --blue:#4fa3e8;--pink:#e05c8a;--amber:#e8a830;--green:#7cc940;
+}
+html,body{width:100%;min-height:100%;background:var(--bg);color:var(--text)}
+body{font-family:'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.5;display:flex;flex-direction:column}
+
+header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:18px;flex-shrink:0}
+header h1{font-size:14px;font-weight:600;letter-spacing:.05em;color:var(--text)}
+header p{font-size:11px;color:var(--muted)}
+
+main{flex:1;padding:20px 28px 32px;display:flex;flex-direction:column;gap:18px}
+
+.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.sg label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.sg label .val{color:var(--text);font-weight:700}
+.sg input[type=range]{width:100%;height:3px;-webkit-appearance:none;appearance:none;background:var(--border2);border-radius:2px;outline:none;cursor:pointer}
+.sg input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--purple);border:2px solid var(--bg);cursor:pointer}
+.sg input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--purple);border:2px solid var(--bg);cursor:pointer}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.card .lbl{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.card .val{font-size:22px;font-weight:700;color:var(--text);line-height:1.1}
+.card .sub{font-size:10px;color:var(--dim);margin-top:3px}
+
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cp{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.cp .ct{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--text)}
+.cp .leg{display:flex;gap:14px;flex-wrap:wrap}
+.leg-i{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+.leg-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.leg-dot.round{border-radius:50%}
+.canvas-wrap{position:relative;width:100%;height:200px}
+
+.tbl-panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto}
+.tbl-panel .ct{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--text);margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead tr{border-bottom:1px solid var(--border2)}
+th{padding:5px 8px;text-align:right;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);color:var(--text)}
+tr:last-child td{border-bottom:none}
+.summary-panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px 24px}
+.summary-panel .ct{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--text);margin-bottom:16px}
+.glossary{display:flex;flex-direction:column;gap:20px}
+.gl-group{border-top:1px solid var(--border);padding-top:14px}
+.gl-group-title{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;font-weight:600}
+.gl-row{display:grid;grid-template-columns:120px 260px 1fr;gap:0;border-bottom:1px solid var(--border);padding:8px 0;align-items:start}
+.gl-col{font-size:11px;font-weight:600;padding-right:12px;padding-top:1px}
+.gl-formula{font-size:10px;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;padding-right:16px;padding-top:2px;line-height:1.5}
+.gl-desc{font-size:11px;color:var(--dim);line-height:1.6}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>k-Color Remapping Complexity Explorer</h1>
+  <p>Interior sub-problem · stars &amp; bars · uniform distribution model</p>
+</header>
+
+<main>
+  <div class="controls" style="grid-template-columns:repeat(4,1fr)">
+    <div class="sg"><label>Width W<span class="val" id="lW">10</span></label><input type="range" id="sW" min="4" max="24" step="1" value="10"></div>
+    <div class="sg"><label>Height H<span class="val" id="lH">10</span></label><input type="range" id="sH" min="4" max="24" step="1" value="10"></div>
+    <div class="sg"><label>Interior colors c<span class="val" id="lC">7</span></label><input type="range" id="sC" min="2" max="30" step="1" value="7"></div>
+    <div class="sg"><label>Max k shown<span class="val" id="lK">7</span></label><input type="range" id="sK" min="2" max="30" step="1" value="7"></div>
+  </div>
+
+  <div class="stats" style="grid-template-columns:repeat(5,minmax(0,1fr))">
+    <div class="card"><div class="lbl">N = W × H</div><div class="val" id="sN">100</div></div>
+    <div class="card"><div class="lbl">Interior pcs</div><div class="val" id="sI">64</div><div class="sub" id="sIdim">(8)×(8)</div></div>
+    <div class="card"><div class="lbl">Edge pcs</div><div class="val" id="sE">36</div></div>
+    <div class="card"><div class="lbl">Colors c</div><div class="val" id="sC2">7</div><div class="sub">non-boundary</div></div>
+    <div class="card"><div class="lbl">Max k</div><div class="val" id="sK2">7</div><div class="sub">remapping colors</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="cp">
+      <div class="ct">Canonical rows (stars &amp; bars) vs interior types</div>
+      <div class="leg">
+        <div class="leg-i"><span class="leg-dot" style="background:var(--purple)"></span>log(canon.rows)</div>
+        <div class="leg-i"><span class="leg-dot round" style="background:var(--teal)"></span>T_I(k)</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="ch1"></canvas></div>
+    </div>
+    <div class="cp">
+      <div class="ct">Remapping pool (k^c) vs min remappings |F|</div>
+      <div class="leg">
+        <div class="leg-i"><span class="leg-dot" style="background:var(--amber)"></span>log(k^c)</div>
+        <div class="leg-i"><span class="leg-dot round" style="background:var(--blue)"></span>|F| min</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="ch2"></canvas></div>
+    </div>
+    <div class="cp">
+      <div class="ct">Within-type ambiguity vs potential solutions</div>
+      <div class="leg">
+        <div class="leg-i"><span class="leg-dot" style="background:var(--coral)"></span>log(ambiguity)</div>
+        <div class="leg-i"><span class="leg-dot round" style="background:var(--green)"></span>log(pot.sol)</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="ch3"></canvas></div>
+    </div>
+    <div class="cp">
+      <div class="ct">Singleton fraction &amp; effective DP dimension</div>
+      <div class="leg">
+        <div class="leg-i"><span class="leg-dot" style="background:var(--purple)"></span>Singleton %</div>
+        <div class="leg-i"><span class="leg-dot round" style="background:var(--pink)"></span>DP dim</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="ch4"></canvas></div>
+    </div>
+  </div>
+
+  <div class="tbl-panel">
+    <div class="ct">Raw data</div>
+    <table>
+      <thead><tr id="thead"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="summary-panel">
+    <div class="ct">Column glossary</div>
+    <div class="glossary">
+
+      <div class="gl-group">
+        <div class="gl-group-title">Remapping structure</div>
+        <div class="gl-row">
+          <div class="gl-col" style="color:var(--purple)">k</div>
+          <div class="gl-formula">k</div>
+          <div class="gl-desc">Number of non-boundary colors in the remapped puzzle. At k=2 (binary) all original colors collapse to just two; at k=c the remapping is the identity and you solve the original puzzle directly.</div>
+        </div>
+        <div class="gl-row">
+          <div class="gl-col" style="color:var(--teal)">T_I(k)</div>
+          <div class="gl-formula">(k^4 + k^2 + 2k) / 4</div>
+          <div class="gl-desc">Distinct canonical interior piece types under a k-color remapping. Derived via Burnside's lemma on C4. Grows as ~k^4/4 and sets the inventory vector dimension the DP must track.</div>
+        </div>
+        <div class="gl-row">
+          <div class="gl-col">T(k)</div>
+          <div class="gl-formula">k(k+1)^2(k+2) / 4</div>
+          <div class="gl-desc">Total canonical types across all zones: corners (k^2) + edges (k^3) + interior T_I(k). Used to compute the minimum discriminating family size |F|.</div>
+        </div>
+      </div>
+
+      <div class="gl-group">
+        <div class="gl-group-title">Row &amp; solution space</div>
+        <div class="gl-row">
+          <div class="gl-col" style="color:var(--purple)">log(canon.rows)</div>
+          <div class="gl-formula">log C(W-2 + T_I(k) - 1, T_I(k) - 1)</div>
+          <div class="gl-desc">Stars-and-bars count of distinct interior row multisets: the number of ways to fill the W-2 interior cells of one row from T_I(k) types. This is the DP row-vector search space per row before inventory pruning.</div>
+        </div>
+        <div class="gl-row">
+          <div class="gl-col" style="color:var(--green)">log(pot.sol)</div>
+          <div class="gl-formula">log(canon.rows) x (H - 2)</div>
+          <div class="gl-desc">Upper bound on type-level solutions: the product of per-row canonical row counts over all H-2 interior rows. A ceiling only -- the DP prunes heavily via inventory constraints -- but it shows how the solution space scales with height.</div>
+        </div>
+      </div>
+
+      <div class="gl-group">
+        <div class="gl-group-title">Remapping family</div>
+        <div class="gl-row">
+          <div class="gl-col" style="color:var(--amber)">log(k^c)</div>
+          <div class="gl-formula">c * log(k)</div>
+          <div class="gl-desc">Log of the full candidate remapping pool. There are k^c possible k-color remappings since each of the c original colors independently maps to one of {1,...,k}. At c=20, k=5 this is ~10^14 candidates -- entropy pre-screening is required to select a good subset without evaluating all of them.</div>
+        </div>
+        <div class="gl-row">
+          <div class="gl-col" style="color:var(--blue)">|F|</div>
+          <div class="gl-formula">ceil( log_T(k)(N) )</div>
+          <div class="gl-desc">Minimum discriminating family size: the fewest remappings needed so that every pair of distinct pieces maps to different type signatures in at least one remapping. Decreases as k grows because each remapping can distinguish more pieces. Once |F|=1, a single remapping theoretically separates all N pieces.</div>
+        </div>
+      </div>
+
+      <div class="gl-group">
+        <div class="gl-group-title">Slot occupancy</div>
+        <div class="gl-row">
+          <div class="gl-col">Sing%</div>
+          <div class="gl-formula">T_I(k) * P(Poisson(lambda)=1) / n_I</div>
+          <div class="gl-desc">Fraction of interior pieces landing in singleton type slots (I_j = 1) under a Poisson occupancy model with lambda = n_I / T_I(k). A singleton means exactly one original piece has that type -- its row assignment is fully determined by the DP, leaving nothing to resolve afterward.</div>
+        </div>
+        <div class="gl-row">
+          <div class="gl-col">Avg/slot</div>
+          <div class="gl-formula">n_I / E[occupied slots]</div>
+          <div class="gl-desc">Average pieces per occupied type slot. Approaches 1 as k grows toward c. When above 1, multiple pieces share a type and must be distinguished after the DP -- this is what drives within-type ambiguity.</div>
+        </div>
+      </div>
+
+      <div class="gl-group">
+        <div class="gl-group-title">DP complexity</div>
+        <div class="gl-row">
+          <div class="gl-col" style="color:var(--pink)">DP dim</div>
+          <div class="gl-formula">min(T_I(k), n_I)</div>
+          <div class="gl-desc">Effective dimension of the inventory vector. Grows with k as more type slots become populated, then saturates at n_I once there are more type slots than pieces. Beyond saturation, additional types are empty and contribute no new DP states.</div>
+        </div>
+        <div class="gl-row">
+          <div class="gl-col">log(SS)</div>
+          <div class="gl-formula">DP_dim * log(avg/slot + 1)</div>
+          <div class="gl-desc">Log of the nominal DP state space -- the product of (I_j + 1) over active slots, approximated uniformly. This is the worst-case number of distinct inventory vectors before pruning. Inventory constraints eliminate the vast majority of these states in practice.</div>
+        </div>
+        <div class="gl-row">
+          <div class="gl-col" style="color:var(--coral)">log(Amb)</div>
+          <div class="gl-formula">T_I(k) * E[log(X!)] where X ~ Poisson(n_I / T_I(k))</div>
+          <div class="gl-desc">Log of within-type ambiguity: the number of ways to assign original pieces to board positions given the DP's type-level solution. Computed as the expected log-factorial per slot under Poisson occupancy, summed over all T_I(k) slots. This is the residual search left after the DP -- it drops super-exponentially with k as pieces spread into more slots and most slots become singletons.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── math ──────────────────────────────────────────────────────────
+function interiorTypes(k){return(k*k*k*k+k*k+2*k)/4}
+function totalTypes(k){return(k*(k+1)*(k+1)*(k+2))/4}
+
+function logComb(n,r){
+  if(r<0||r>n)return 0;
+  if(r===0||r===n)return 0;
+  if(r>n-r)r=n-r;
+  let s=0;
+  for(let i=0;i<r;i++) s+=Math.log10(n-i)-Math.log10(i+1);
+  return s;
+}
+function logFact(n){
+  if(n<=1)return 0;
+  let s=0;
+  for(let i=2;i<=n;i++) s+=Math.log10(i);
+  return s;
+}
+function r2(v){return Math.round(v*100)/100}
+
+// E[log10(X!)] where X ~ Poisson(lambda)
+// Correct per-slot expected ambiguity contribution — avoids the round(avg)=1 collapse
+function expectedLogFactPoisson(lambda){
+  let prob=Math.exp(-lambda);
+  let result=0;
+  for(let n=0;n<=80;n++){
+    if(n>0) prob*=lambda/n;
+    result+=prob*logFact(n);
+    if(prob<1e-15) break;
+  }
+  return result;
+}
+
+function compute(W,H,c,kMax){
+  const N=W*H, nI=(W-2)*(H-2), nE=2*(W+H-4);
+  // kMax is now a free slider; capped at c (k=c is the identity remapping)
+  const kEnd=Math.min(kMax,c);
+  const rows=[];
+  for(let k=2;k<=kEnd;k++){
+    const TI=interiorTypes(k), TK=totalTypes(k);
+    const logSB=logComb(W-2+TI-1, TI-1);
+    const minF=Math.max(1,Math.ceil(Math.log(N)/Math.log(TK)));
+    const lam=TI>0?nI/TI:nI;
+    const p0=Math.exp(-lam), p1=lam*Math.exp(-lam);
+    const active=Math.max(1,TI*(1-p0));
+    const singPct=nI>0?Math.min(100,Math.round((TI*p1/nI)*100)):0;
+    const avg=r2(nI/active);
+    // effective DP dimension = number of occupied type slots = min(TI, nI)
+    // (grows with k, saturates once TI >= nI; slots≥2 is a pruning detail, not the dimension)
+    const effDPdim=Math.min(Math.round(TI), nI);
+    const sge2=effDPdim;
+    const logSS=sge2>0?r2(sge2*Math.log10(avg+1)):0;
+    // Correct ambiguity: sum over all TI slots of E[log10(I_j!)] under Poisson(lambda)
+    const logAmb=r2(TI*expectedLogFactPoisson(lam));
+    const logPool=r2(c*Math.log10(k));
+    const logPotSol=r2(logSB*(H-2));
+    rows.push({k,TI,TK:Math.round(TK),logSB:r2(logSB),logPool,minF,singPct,avg,sge2,logSS,logAmb,logPotSol});
+  }
+  return{N,nI,nE,rows};
+}
+
+// ── chart setup ───────────────────────────────────────────────────
+const GRID_COLOR='rgba(255,255,255,0.05)';
+const TICK_COLOR='#7a7f90';
+const C={purple:'#7c6ff7',teal:'#22c98a',coral:'#f0643a',
+         blue:'#4fa3e8',pink:'#e05c8a',amber:'#e8a830',green:'#7cc940'};
+
+function baseOptions(leftLabel,leftColor,rightLabel,rightColor){
+  return{
+    responsive:true, maintainAspectRatio:false, animation:{duration:150},
+    plugins:{legend:{display:false},tooltip:{
+      backgroundColor:'#1e2130',borderColor:'rgba(255,255,255,0.12)',borderWidth:1,
+      titleColor:'#e8eaf0',bodyColor:'#b0b4c0',padding:8
+    }},
+    scales:{
+      x:{ticks:{color:TICK_COLOR,font:{size:10}},grid:{color:GRID_COLOR}},
+      yL:{type:'linear',position:'left',
+          ticks:{color:leftColor,font:{size:10}},grid:{color:GRID_COLOR},
+          title:{display:true,text:leftLabel,color:leftColor,font:{size:9}}},
+      yR:{type:'linear',position:'right',
+          ticks:{color:rightColor,font:{size:10}},grid:{drawOnChartArea:false},
+          title:{display:true,text:rightLabel,color:rightColor,font:{size:9}}},
+    }
+  };
+}
+
+function makeChart(id,barColor,lineColor,leftLabel,rightLabel){
+  const ctx=document.getElementById(id).getContext('2d');
+  return new Chart(ctx,{
+    data:{
+      labels:[],
+      datasets:[
+        {type:'bar',  data:[],backgroundColor:barColor+'bb',borderRadius:3,yAxisID:'yL',order:2},
+        {type:'line', data:[],borderColor:lineColor,backgroundColor:'transparent',
+         pointBackgroundColor:lineColor,pointRadius:4,borderWidth:2,yAxisID:'yR',order:1},
+      ]
+    },
+    options:baseOptions(leftLabel,barColor,rightLabel,lineColor)
+  });
+}
+
+// create all four charts once DOM is ready
+const charts={};
+charts.c1=makeChart('ch1',C.purple,C.teal,  'log(rows)',   'T_I(k)');
+charts.c2=makeChart('ch2',C.amber, C.blue,  'log(k^c)',    '|F|');
+charts.c3=makeChart('ch3',C.coral, C.green, 'log(amb.)',   'log(sol)');
+charts.c4=makeChart('ch4',C.purple,C.pink,  'Singleton %', 'DP dim');
+
+function updateCharts(rows){
+  const labels=rows.map(r=>'k='+r.k);
+  const sets=[
+    [rows.map(r=>r.logSB),   rows.map(r=>r.TI)],
+    [rows.map(r=>r.logPool), rows.map(r=>r.minF)],
+    [rows.map(r=>r.logAmb),  rows.map(r=>r.logPotSol)],
+    [rows.map(r=>r.singPct), rows.map(r=>r.sge2)],
+  ];
+  ['c1','c2','c3','c4'].forEach((id,i)=>{
+    const ch=charts[id];
+    ch.data.labels=labels;
+    ch.data.datasets[0].data=sets[i][0];
+    ch.data.datasets[1].data=sets[i][1];
+    ch.update();
+  });
+}
+
+// ── table ─────────────────────────────────────────────────────────
+const TH_LABELS=['k','T_I(k)','T(k)','log(canon.rows)','log(k^c)','|F|','Sing%','Avg/slot','DP dim','log(SS)','log(Amb)','log(sol)'];
+const TH_KEYS=  ['k','TI','TK','logSB','logPool','minF','singPct','avg','sge2','logSS','logAmb','logPotSol'];
+const TH_COLS=  [C.purple,C.teal,'',C.purple,C.amber,C.blue,'','',C.pink,'',C.coral,C.green];
+
+(function buildTableHeader(){
+  const thead=document.getElementById('thead');
+  TH_LABELS.forEach(h=>{
+    const th=document.createElement('th');
+    th.textContent=h;
+    thead.appendChild(th);
+  });
+})();
+
+function updateTable(rows){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    TH_KEYS.forEach((k,i)=>{
+      const td=document.createElement('td');
+      td.textContent=(k==='singPct')?r[k]+'%':r[k];
+      if(TH_COLS[i]) td.style.color=TH_COLS[i];
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+// ── stats ──────────────────────────────────────────────────
+function updateStats(W,H,c,kMax,d){
+  document.getElementById('sN').textContent=d.N;
+  document.getElementById('sI').textContent=d.nI;
+  document.getElementById('sIdim').textContent='('+String(W-2)+')x('+String(H-2)+')';
+  document.getElementById('sE').textContent=d.nE;
+  document.getElementById('sC2').textContent=c;
+  document.getElementById('sK2').textContent=Math.min(kMax,c);
+}
+
+// ── reactive state ────────────────────────────────────────────────
+let W=10,H=10,c=7,kMax=7;
+
+function refresh(){
+  const d=compute(W,H,c,kMax);
+  updateStats(W,H,c,kMax,d);
+  updateCharts(d.rows);
+  updateTable(d.rows);
+}
+
+function wire(sliderId,labelId,setter){
+  const sl=document.getElementById(sliderId);
+  const lb=document.getElementById(labelId);
+  sl.addEventListener('input',()=>{setter(+sl.value);lb.textContent=sl.value;refresh()});
+}
+
+wire('sW','lW',v=>W=v);
+wire('sH','lH',v=>H=v);
+wire('sC','lC',v=>{ c=v; /* clamp kMax display if it now exceeds c */ if(kMax>c){kMax=c;document.getElementById('sK').value=c;document.getElementById('lK').textContent=c;} refresh(); });
+wire('sK','lK',v=>{ kMax=Math.min(v,c); document.getElementById('sK').value=kMax; document.getElementById('lK').textContent=kMax; refresh(); });
+
+refresh();
+</script>
+</body>
+</html>
